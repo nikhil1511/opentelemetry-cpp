@@ -10,8 +10,6 @@
 #include "opentelemetry/trace/span_context.h"
 #include "opentelemetry/version.h"
 #include "opentelemetry/baggage/baggage.h"
-#include <string>
-#include <unordered_map>
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace context
