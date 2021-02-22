@@ -9,7 +9,6 @@ using namespace opentelemetry::baggage;
 
 // ----------------------- Entry Class Tests --------------------------
 
-// Test constructor that takes a key-value pair
 TEST(EntryTest, KeyValueConstruction)
 {
   opentelemetry::nostd::string_view key = "test_key";
@@ -21,7 +20,6 @@ TEST(EntryTest, KeyValueConstruction)
   EXPECT_EQ(val, e.GetValue());
 }
 
-// Test copy constructor
 TEST(EntryTest, Copy)
 {
   Baggage::Entry e("test_key", "test_value");
@@ -29,7 +27,7 @@ TEST(EntryTest, Copy)
   EXPECT_EQ(copy.GetKey(), e.GetKey());
   EXPECT_EQ(copy.GetValue(), e.GetValue());
 }
-// Test assignment operator
+
 TEST(EntryTest, Assignment)
 {
   Baggage::Entry e("test_key", "test_value");
@@ -38,6 +36,7 @@ TEST(EntryTest, Assignment)
   EXPECT_EQ(empty.GetKey(), e.GetKey());
   EXPECT_EQ(empty.GetValue(), e.GetValue());
 }
+
 TEST(EntryTest, SetValue)
 {
   Baggage::Entry e("test_key", "test_value");

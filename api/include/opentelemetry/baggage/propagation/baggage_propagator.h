@@ -26,6 +26,7 @@ class BaggagePropagator : public trace::propagation::HTTPTextFormat<T>
 public:
   static constexpr const char *kBaggageHeaderName = "baggage";
 
+  // Inject baggage stored in context into carrier 
   void Inject(Setter setter, T &carrier, const context::Context &context) noexcept override
   {
     context::Context ctx(context);
@@ -41,6 +42,7 @@ public:
     setter(carrier, kBaggageHeaderName, baggage_header);
   }
 
+  // Extract baggage stored in carrier and set it in context.
   context::Context Extract(Getter getter,
                            const T &carrier,
                            context::Context &context) noexcept override
