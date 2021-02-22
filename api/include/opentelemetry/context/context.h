@@ -60,7 +60,7 @@ public:
   }
 
   // Returns the value associated with the passed in key.
-  context::ContextValue GetValue(const nostd::string_view key) const noexcept
+  context::ContextValue GetValue(const nostd::string_view key) noexcept
   {
     for (DataList *data = head_.get(); data != nullptr; data = data->next_.get())
     {
@@ -76,7 +76,7 @@ public:
   }
 
   // Checks for key and returns true if found
-  bool HasKey(const nostd::string_view key) const noexcept
+  bool HasKey(const nostd::string_view key) noexcept
   {
     for (DataList *data = head_.get(); data != nullptr; data = data->next_.get())
     {

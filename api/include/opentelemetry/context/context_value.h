@@ -9,6 +9,7 @@
 #include "opentelemetry/trace/span.h"
 #include "opentelemetry/trace/span_context.h"
 #include "opentelemetry/version.h"
+#include "opentelemetry/baggage/baggage.h"
 #include <string>
 #include <unordered_map>
 
@@ -21,6 +22,6 @@ using ContextValue = nostd::variant<bool,
                                     double,
                                     nostd::shared_ptr<trace::Span>,
                                     nostd::shared_ptr<trace::SpanContext>,
-                                    nostd::shared_ptr<std::unordered_map<std::string, std::string>>>;
+                                    nostd::shared_ptr<baggage::Baggage>>;
 }  // namespace context
 OPENTELEMETRY_END_NAMESPACE

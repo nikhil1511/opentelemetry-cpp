@@ -1,0 +1,14 @@
+load("//bazel:otel_cc_benchmark.bzl", "otel_cc_benchmark")
+
+cc_test(
+    name = "baggage_test",
+    srcs = [
+        "baggage_test.cc",
+        "baggage_utilities_test.cc",
+        "propagation/baggage_propagator_test.cc",
+    ],
+    deps = [
+        "//api",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
