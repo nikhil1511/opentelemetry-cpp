@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iomanip>
+#include <iostream>
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/span.h"
 #include "opentelemetry/nostd/string_view.h"
@@ -20,32 +22,33 @@ namespace baggage
 class Baggage
 {
 public:
-  static constexpr size_t kMaxKeyValuePairs = 180;
-  static constexpr size_t kMaxKeyValueSize  = 4096;
-  static constexpr size_t kMaxSize          = 8192;
-  static constexpr char kKeyValueSeparator  = '=';
-  static constexpr char kMembersSeparator   = ',';
+  static constexpr size_t kMaxKeyValuePairs     = 180;
+  static constexpr size_t kMaxKeyValueSize      = 4096;
+  static constexpr size_t kMaxSize              = 8192;
+  static constexpr char kKeyValueSeparator      = '=';
+  static constexpr char kMembersSeparator       = ',';
+  static constexpr char kValueMetadataSeparator = ';';
 
   // Class to store key-value pairs.
   class Entry
   {
   public:
-    Entry() : key_(nullptr), value_(nullptr), total_size_(0){};
+    Entry() : key_(nullptr), value_(nullptr), metadata_(nullptr){};
 
     // Copy constructor
     Entry(const Entry &other)
     {
-      key_        = CopyStringToPointer(other.key_.get());
-      value_      = CopyStringToPointer(other.value_.get());
-      total_size_ = other.total_size_;
+      key_      = CopyStringToPointer(other.key_.get());
+      value_    = CopyStringToPointer(other.value_.get());
+      metadata_ = CopyStringToPointer(other.metadata_.get());
     }
 
     // Copy assignment operator
     Entry &operator=(Entry &other)
     {
-      key_        = CopyStringToPointer(other.key_.get());
-      value_      = CopyStringToPointer(other.value_.get());
-      total_size_ = other.total_size_;
+      key_      = CopyStringToPointer(other.key_.get());
+      value_    = CopyStringToPointer(other.value_.get());
+      metadata_ = CopyStringToPointer(other.metadata_.get());
 
       return *this;
     }
@@ -53,26 +56,26 @@ public:
     Entry(Entry &&other) = default;
     Entry &operator=(Entry &&other) = default;
     // Creates an Entry for a given key-value pair.
-    Entry(nostd::string_view key, nostd::string_view value) noexcept
+    Entry(nostd::string_view key,
+          nostd::string_view value,
+          nostd::string_view metadata = "") noexcept
     {
-      key_        = CopyStringToPointer(key);
-      value_      = CopyStringToPointer(value);
-      total_size_ = key.size() + value.size();
+      key_      = CopyStringToPointer(key);
+      value_    = CopyStringToPointer(value);
+      metadata_ = CopyStringToPointer(metadata);
     }
     // Gets the key associated with this entry.
     nostd::string_view GetKey() const { return key_.get(); }
     // Gets the value associated with this entry.
     nostd::string_view GetValue() const { return value_.get(); }
-    // Gets the size of key value pair
-    size_t GetSize() const { return total_size_; }
-    // Sets the value for this entry. This overrides the previous value.
-    void SetValue(nostd::string_view value) { value_ = CopyStringToPointer(value); }
+    // Gets the metdata associated with the entry
+    nostd::string_view GetMetadata() const { return metadata_.get(); }
 
   private:
     // Store key and value as raw char pointers to avoid using std::string.
     nostd::unique_ptr<const char[]> key_;
     nostd::unique_ptr<const char[]> value_;
-    size_t total_size_;
+    nostd::unique_ptr<const char[]> metadata_;
     // Copies string into a buffer and returns a unique_ptr to the buffer.
     // This is a workaround for the fact that memcpy doesn't accept a const destination.
     nostd::unique_ptr<const char[]> CopyStringToPointer(nostd::string_view str)
@@ -86,21 +89,26 @@ public:
 
   Baggage() : entries_(new Entry[kMaxKeyValuePairs]), num_entries_{0} {}
 
+  // Creates baggage object by extracting baggage info from header
   static nostd::shared_ptr<Baggage> FromHeader(nostd::string_view header)
   {
     nostd::shared_ptr<Baggage> baggage{new Baggage()};
 
+    if (header.size() > kMaxSize)
+    {
+      return baggage;
+    }
+
     size_t begin{0};
     size_t end{0};
-    size_t total_size = 0;
     while (begin < header.size() && baggage->num_entries_ < kMaxKeyValuePairs)
     {
       // find list-member
       end = header.find(kMembersSeparator, begin);
-      if (end == 0)
+      if (end == begin)
       {
-        // special case where "," is first char, move to next list member
-        begin = 1;
+        // character is ,
+        begin++;
         continue;
       }
       if (end == std::string::npos)
@@ -114,37 +122,38 @@ public:
         end--;
       }
 
-      auto list_member = TrimString(header, begin, end);
-      if (list_member.size() == 0)
-      {
-        // empty list member, move to next in list
-        begin = end + 2;  // begin points to start of next member
-        continue;
-      }
+      auto list_member = header.substr(begin, end - begin + 1);
 
       auto key_end_pos = list_member.find(kKeyValueSeparator);
       if (key_end_pos == std::string::npos)
       {
-        // Error: invalid list member, return empty Baggage
-        baggage->entries_.reset(nullptr);
-        baggage->num_entries_ = 0;
-        break;
+        // Invalid list member, key end not found. Ignore this entry
+        begin = end + 2;
+        continue;
       }
-      auto key   = list_member.substr(0, key_end_pos);
-      auto value = list_member.substr(key_end_pos + 1);
-      if (!IsValidKey(key) || !IsValidValue(value))
+
+      nostd::string_view metadata;
+      auto value_end_pos   = list_member.find(kValueMetadataSeparator);
+      size_t value_end_len = std::string::npos;
+      if (value_end_pos != std::string::npos)
       {
-        // invalid header. return empty baggage
-        baggage->entries_.reset(nullptr);
-        baggage->num_entries_ = 0;
-        break;
+        value_end_len = value_end_pos - key_end_pos - 1;
+
+        // metadata is trimmed and kept as it is
+        metadata = TrimString(list_member.substr(value_end_pos + 1));
       }
-      Entry entry(key, value);
-      if (entry.GetSize() < kMaxKeyValueSize && total_size + entry.GetSize() < kMaxSize)
+
+      int err    = 0;
+      auto key   = Decode(TrimString(list_member.substr(0, key_end_pos)), err);
+      auto value = Decode(TrimString(list_member.substr(key_end_pos + 1, value_end_len)), err);
+      if (IsValidKey(key) && IsValidValue(value) && err == 0)
       {
-        (baggage->entries_.get())[baggage->num_entries_] = entry;
-        baggage->num_entries_++;
-        total_size += entry.GetSize();
+        Entry entry(key, value, metadata);
+        if (end - begin + 1 < kMaxKeyValueSize)
+        {
+          (baggage->entries_.get())[baggage->num_entries_] = entry;
+          baggage->num_entries_++;
+        }
       }
 
       begin = end + 2;
@@ -152,6 +161,8 @@ public:
 
     return baggage;
   }
+
+  // Creates string from baggage object.
   std::string ToHeader()
   {
     std::string header_s;
@@ -162,9 +173,14 @@ public:
         header_s.append(",");
       }
       auto entry = (entries_.get())[count];
-      header_s.append(std::string(entry.GetKey()));
-      header_s.append(1, kKeyValueSeparator);
-      header_s.append(std::string(entry.GetValue()));
+      header_s.append(Encode(entry.GetKey()));
+      header_s.push_back(kKeyValueSeparator);
+      header_s.append(Encode(entry.GetValue()));
+      if (entry.GetMetadata().size())
+      {
+        header_s.push_back(kValueMetadataSeparator);
+        header_s.append(std::string{entry.GetMetadata()});
+      }
     }
     return header_s;
   }
@@ -189,7 +205,9 @@ public:
   }
 
   // Record the value for a name/value pair. Returns a new Baggage that contains the new value.
-  nostd::shared_ptr<Baggage> Set(nostd::string_view key, nostd::string_view value)
+  nostd::shared_ptr<Baggage> Set(nostd::string_view key,
+                                 nostd::string_view value,
+                                 nostd::string_view metadata = "")
   {
     nostd::shared_ptr<Baggage> baggage{new Baggage()};
     if (!IsValidKey(key) || !IsValidValue(value))
@@ -197,41 +215,19 @@ public:
       return baggage;
     }
 
-    size_t total_size        = 0;
-    int key_index_in_baggage = -1;
-
+    Entry new_e(key, value, metadata);
+    (baggage->entries_.get())[baggage->num_entries_++] = new_e;
     for (size_t i = 0; i < num_entries_; i++)
     {
       // Each name in the baggage must be associated with only one value.
-      // We do not add old value for the key, but save it's index to be used
-      // in a case when new key value is discarded.
+      // We do not add old value for the key.
       if (key == (entries_.get())[i].GetKey())
       {
-        key_index_in_baggage = i;
         continue;
       }
 
       Entry e((entries_.get())[i]);
-
       (baggage->entries_.get())[baggage->num_entries_++] = e;
-      total_size += e.GetSize();
-    }
-
-    if (baggage->num_entries_ < kMaxKeyValuePairs)
-    {
-      Entry e(key, value);
-      total_size += e.GetSize();
-      if (total_size < kMaxSize && e.GetSize() < kMaxKeyValueSize)
-      {
-        (baggage->entries_.get())[baggage->num_entries_++] = e;
-      }
-      else if (key_index_in_baggage != -1)
-      {
-        // we add original key, value in the baggage as new value exceeds size
-        // threshold.
-        auto original_entry = Entry((entries_.get())[key_index_in_baggage]);
-        (baggage->entries_.get())[baggage->num_entries_++] = original_entry;
-      }
     }
 
     return baggage;
@@ -254,6 +250,7 @@ public:
     return baggage;
   }
 
+  // Get all key-value pairs in baggage
   nostd::span<Entry> GetAll() const noexcept
   {
     return nostd::span<Entry>(entries_.get(), num_entries_);
@@ -263,35 +260,116 @@ private:
   nostd::unique_ptr<Entry[]> entries_;
   size_t num_entries_;
 
-  static bool IsValidKey(nostd::string_view key)
+  static bool IsPrintableString(nostd::string_view str)
   {
-    if (key.empty())
+    for (const auto &ch : str)
     {
-      return false;
+      if (ch < ' ' || ch > '~')
+      {
+        return false;
+      }
     }
+
     return true;
   }
 
-  static bool IsValidValue(nostd::string_view value)
-  {
-    if (value.empty())
-    {
-      return false;
-    }
-    return true;
-  }
+  static bool IsValidKey(nostd::string_view key) { return key.size() && IsPrintableString(key); }
 
-  static nostd::string_view TrimString(nostd::string_view str, size_t left, size_t right)
+  static bool IsValidValue(nostd::string_view value) { return IsPrintableString(value); }
+
+  // Remove trailing spaces from str [left, right]
+  static nostd::string_view TrimString(nostd::string_view str)
   {
-    while (str[static_cast<std::size_t>(right)] == ' ' && left < right)
+    if (str.size() == 0)
+    {
+      return str;
+    }
+
+    size_t left = 0, right = str.size() - 1;
+    while (str[right] == ' ' && left < right)
     {
       right--;
     }
-    while (str[static_cast<std::size_t>(left)] == ' ' && left < right)
+    while (str[left] == ' ' && left < right)
     {
       left++;
     }
     return str.substr(left, right - left + 1);
+  }
+
+  // Uri encode key value pairs before injecting into header
+  static std::string Encode(nostd::string_view str)
+  {
+    auto to_hex = [](char c) -> char {
+      static const char *hex = "0123456789ABCDEF";
+      return hex[c & 15];
+    };
+
+    std::string ret;
+
+    for (auto c : str)
+    {
+      if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
+      {
+        ret.push_back(c);
+      }
+      else if (c == ' ')
+      {
+        ret.push_back('+');
+      }
+      else
+      {
+        ret.push_back('%');
+        ret.push_back(to_hex(c >> 4));
+        ret.push_back(to_hex(c & 15));
+      }
+    }
+
+    return ret;
+  }
+
+  // Uri decode key value pairs after extracting from header
+  static std::string Decode(nostd::string_view str, int &err)
+  {
+    auto IsHex = [](char c) {
+      return std::isdigit(c) || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+    };
+
+    auto from_hex = [](char c) -> char {
+      return std::isdigit(c) ? c - '0' : std::toupper(c) - 'A' + 10;
+    };
+
+    std::string ret;
+
+    for (int i = 0; i < str.size(); i++)
+    {
+      if (str[i] == '%')
+      {
+        if (i + 2 >= str.size() || !IsHex(str[i + 1]) || !IsHex(str[i + 2]))
+        {
+          err = 1;
+          return "";
+        }
+        ret.push_back(from_hex(str[i + 1]) << 4 | from_hex(str[i + 2]));
+        i += 2;
+      }
+      else if (str[i] == '+')
+      {
+        ret.push_back(' ');
+      }
+      else if (std::isalnum(str[i]) || str[i] == '-' || str[i] == '_' || str[i] == '.' ||
+               str[i] == '~')
+      {
+        ret.push_back(str[i]);
+      }
+      else
+      {
+        err = 1;
+        return "";
+      }
+    }
+
+    return ret;
   }
 };
 

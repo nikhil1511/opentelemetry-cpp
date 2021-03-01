@@ -47,7 +47,7 @@ TEST(BaggagePropagatorTest, InjectBaggage)
   baggage = baggage->Set("k2", "v2");
   ctx     = BaggageUtilities::SetBaggageInContext(baggage, ctx);
   baggage_propagator.Inject(Setter, carrier, ctx);
-  EXPECT_EQ(carrier["baggage"], "k1=v1,k2=v2");
+  EXPECT_EQ(carrier["baggage"], "k2=v2,k1=v1");
 }
 
 TEST(BaggagePropagatorTest, ExtractBaggage)
