@@ -29,13 +29,9 @@ TEST(StringUtilTest, TrimString)
   {
     const char *input;
     const char *expected;
-  } testcases[] = {{"k1=v1", "k1=v1"},
-                   {"k1=v1,k2=v2, k3=v3", "k1=v1,k2=v2, k3=v3"},
-                   {"   k1=v1", "k1=v1"},
-                   {"k1=v1   ", "k1=v1"},
-                   {"   k1=v1 ", "k1=v1"},
-                   {"  ", ""},
-                   {"", ""}};
+  } testcases[] = {{"k1=v1", "k1=v1"},     {"k1=v1,k2=v2, k3=v3", "k1=v1,k2=v2, k3=v3"},
+                   {"   k1=v1", "k1=v1"},  {"k1=v1   ", "k1=v1"},
+                   {"   k1=v1 ", "k1=v1"}, {"", ""}};
   for (auto &testcase : testcases)
   {
     EXPECT_EQ(StringUtil::Trim(testcase.input, 0, strlen(testcase.input) - 1), testcase.expected);
