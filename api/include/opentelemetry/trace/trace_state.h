@@ -69,17 +69,13 @@ public:
 
     size_t cnt = 0;
     common::KeyValueStringIterator kv_str_itr(header);
-
-    while (cnt < kMaxKeyValuePairs)
+    bool kv_valid;
+    nostd::string_view key, value;
+    while (kv_str_itr.next(kv_valid, key, value) && cnt < kMaxKeyValuePairs)
     {
-      auto kv_pair = kv_str_itr.next();
-      if (kv_pair.status == common::KeyValueStringIterator::Status::INVALID)
+      if (kv_valid == false)
       {
         return GetDefault();
-      }
-      else if (kv_pair.status == common::KeyValueStringIterator::Status::END)
-      {
-        break;
       }
 
       ++cnt;
@@ -87,17 +83,16 @@ public:
 
     nostd::shared_ptr<TraceState> ts(new TraceState(cnt));
     kv_str_itr.reset();
-    while (ts->kv_properties_->Size() < cnt)
+    while (kv_str_itr.next(kv_valid, key, value) && ts->kv_properties_->Size() < cnt)
     {
-      auto kv_pair = kv_str_itr.next();
-      if (!IsValidKey(kv_pair.key) || !IsValidValue(kv_pair.value))
+      if (!IsValidKey(key) || !IsValidValue(value))
       {
         // invalid header. return empty TraceState
         ts->kv_properties_.reset(new opentelemetry::common::KeyValueProperties());
         break;
       }
 
-      ts->kv_properties_->AddEntry(kv_pair.key, kv_pair.value);
+      ts->kv_properties_->AddEntry(key, value);
     }
 
     return ts;

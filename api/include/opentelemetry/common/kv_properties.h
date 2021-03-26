@@ -17,20 +17,6 @@ namespace common
 class KeyValueStringIterator
 {
 public:
-  enum class Status
-  {
-    VALID = 0,
-    INVALID,
-    END,
-  };
-
-  struct KeyValuePair
-  {
-    Status status;
-    nostd::string_view key;
-    nostd::string_view value;
-  };
-
   KeyValueStringIterator(nostd::string_view str,
                          char member_separator    = ',',
                          char key_value_separator = '=')
@@ -40,10 +26,14 @@ public:
         index_(0)
   {}
 
-  KeyValuePair next()
+  // Returns next key value in the string header
+  // @param valid_kv : if the found kv pair is valid or not
+  // @param key : key in kv pair
+  // @param key : value in kv pair
+  // @returns true if next kv pair was found, false otherwise.
+  bool next(bool &valid_kv, nostd::string_view &key, nostd::string_view &value)
   {
-    KeyValuePair ret;
-    ret.status = Status::VALID;
+    valid_kv = true;
     while (index_ < str_.size())
     {
       size_t end = str_.find(member_separator_, index_);
@@ -69,21 +59,24 @@ public:
       if (key_end_pos == std::string::npos)
       {
         // invalid member
-        ret.status = Status::INVALID;
-        return ret;
+        valid_kv = false;
+      }
+      else
+      {
+        key   = list_member.substr(0, key_end_pos);
+        value = list_member.substr(key_end_pos + 1);
       }
 
-      ret.key   = list_member.substr(0, key_end_pos);
-      ret.value = list_member.substr(key_end_pos + 1);
-
       index_ = end + 2;
-      return ret;
+
+      return true;
     }
 
-    ret.status = Status::END;
-    return ret;
+    // no more entries remaining
+    return false;
   }
 
+  // Resets the iterator
   void reset() { index_ = 0; }
 
 private:
@@ -173,32 +166,36 @@ public:
   // Create Empty Key-Value list
   KeyValueProperties() : num_entries_(0), max_num_entries_(0), entries_(nullptr) {}
 
-  template <class T, typename = std::enable_if<detail::is_key_value_iterable<T>::value>>
+  template <class T, class = typename std::enable_if<detail::is_key_value_iterable<T>::value>::type>
   KeyValueProperties(const T &keys_and_values)
-      : max_num_entries_(keys_and_values.size()), entries_(new Entry[max_num_entries_])
+      : num_entries_(0),
+        max_num_entries_(keys_and_values.size()),
+        entries_(new Entry[max_num_entries_])
   {
     for (auto &e : keys_and_values)
     {
-      Entry entry(keys_and_values.first, keys_and_values.second);
-      (entries_.get())[num_entries_++] = entry;
+      Entry entry(e.first, e.second);
+      (entries_.get())[num_entries_++] = std::move(entry);
     }
   }
 
+  // Adds new kv pair into kv properties
   void AddEntry(const nostd::string_view &key, const nostd::string_view &value)
   {
     if (num_entries_ < max_num_entries_)
     {
       Entry entry(key, value);
-      (entries_.get())[num_entries_++] = entry;
+      (entries_.get())[num_entries_++] = std::move(entry);
     }
   }
 
+  // Returns all kv pair entries
   bool GetAllEntries(
       nostd::function_ref<bool(nostd::string_view, nostd::string_view)> callback) const noexcept
   {
     for (size_t i = 0; i < num_entries_; i++)
     {
-      auto entry = (entries_.get())[i];
+      auto &entry = (entries_.get())[i];
       if (!callback(entry.GetKey(), entry.GetValue()))
       {
         return false;
@@ -207,11 +204,12 @@ public:
     return true;
   }
 
+  // Return value for key if exists, return false otherwise
   bool GetValue(const nostd::string_view key, std::string &value)
   {
     for (size_t i = 0; i < num_entries_; i++)
     {
-      auto entry = (entries_.get())[i];
+      auto &entry = (entries_.get())[i];
       if (entry.GetKey() == key)
       {
         value = std::string(entry.GetValue());
