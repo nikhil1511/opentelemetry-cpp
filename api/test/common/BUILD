@@ -5,3 +5,14 @@ otel_cc_benchmark(
     srcs = ["spinlock_benchmark.cc"],
     deps = ["//api"],
 )
+
+cc_test(
+    name = "kv_properties_test",
+    srcs = [
+        "kv_properties_test.cc"
+    ],
+    deps = [
+        "//api",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
