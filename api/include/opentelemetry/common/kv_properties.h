@@ -1,3 +1,17 @@
+// Copyright 2021, OpenTelemetry Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "opentelemetry/common/key_value_iterable_view.h"
 #include "opentelemetry/common/string_util.h"
 #include "opentelemetry/nostd/function_ref.h"
@@ -77,7 +91,7 @@ public:
   }
 
   // Resets the iterator
-  void reset() { index_ = 0; }
+  void reset() noexcept { index_ = 0; }
 
 private:
   nostd::string_view str_;
@@ -94,7 +108,7 @@ public:
   class Entry
   {
   public:
-    Entry() : key_(nullptr), value_(nullptr){};
+    Entry() : key_(nullptr), value_(nullptr) {}
 
     // Copy constructor
     Entry(const Entry &copy)
@@ -116,7 +130,7 @@ public:
     Entry &operator=(Entry &&other) = default;
 
     // Creates an Entry for a given key-value pair.
-    Entry(nostd::string_view key, nostd::string_view value) noexcept
+    Entry(nostd::string_view key, nostd::string_view value)
     {
       key_   = CopyStringToPointer(key);
       value_ = CopyStringToPointer(value);
@@ -191,7 +205,7 @@ public:
 
   // Returns all kv pair entries
   bool GetAllEntries(
-      nostd::function_ref<bool(nostd::string_view, nostd::string_view)> callback) const noexcept
+      nostd::function_ref<bool(nostd::string_view, nostd::string_view)> callback) const
   {
     for (size_t i = 0; i < num_entries_; i++)
     {
@@ -205,7 +219,7 @@ public:
   }
 
   // Return value for key if exists, return false otherwise
-  bool GetValue(const nostd::string_view key, std::string &value)
+  bool GetValue(const nostd::string_view key, std::string &value) const
   {
     for (size_t i = 0; i < num_entries_; i++)
     {
@@ -219,7 +233,7 @@ public:
     return false;
   }
 
-  size_t Size() { return num_entries_; }
+  size_t Size() const noexcept { return num_entries_; }
 };
 }  // namespace common
 OPENTELEMETRY_END_NAMESPACE
