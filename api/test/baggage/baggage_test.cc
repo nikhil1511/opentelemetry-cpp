@@ -95,7 +95,8 @@ TEST(BaggageTest, ValidateExtractHeader)
   auto baggage = Baggage::FromHeader(header_with_custom_entries(Baggage::kMaxKeyValuePairs + 1));
   auto header  = baggage->ToHeader();
   common::KeyValueStringTokenizer kv_str_tokenizer(header);
-  EXPECT_EQ(kv_str_tokenizer.NumTokens(), Baggage::kMaxKeyValuePairs);
+  int expected_tokens = Baggage::kMaxKeyValuePairs;
+  EXPECT_EQ(kv_str_tokenizer.NumTokens(), expected_tokens);
 
   // For header with total size more than threshold, baggage is empty
   int num_pairs_with_max_size = Baggage::kMaxSize / Baggage::kMaxKeyValueSize;
@@ -150,26 +151,29 @@ TEST(BaggageTest, BaggageSet)
   auto baggage       = Baggage::FromHeader(header);
 
   std::string value;
-  auto baggage_new = baggage->Set("k3", "v3");
-  EXPECT_TRUE(baggage_new->GetValue("k3", value));
+  baggage = baggage->Set("k3", "v3");
+  EXPECT_TRUE(baggage->GetValue("k3", value));
   EXPECT_EQ(value, "v3");
 
-  auto baggage_new_2 =
-      baggage_new->Set("k3", "v3_1");  // key should be updated with the latest value
-  EXPECT_TRUE(baggage_new_2->GetValue("k3", value));
+  baggage = baggage->Set("k3", "v3_1");  // key should be updated with the latest value
+  EXPECT_TRUE(baggage->GetValue("k3", value));
   EXPECT_EQ(value, "v3_1");
 
-  header            = header_with_custom_entries(Baggage::kMaxKeyValuePairs);
-  auto baggage2     = Baggage::FromHeader(header);
-  auto baggage2_new = baggage2->Set("key0", "0");  // updating on max list should work
-  EXPECT_TRUE(baggage2_new->GetValue("key0", value));
+  header  = header_with_custom_entries(Baggage::kMaxKeyValuePairs);
+  baggage = Baggage::FromHeader(header);
+  baggage = baggage->Set("key0", "0");  // updating on max list should work
+  EXPECT_TRUE(baggage->GetValue("key0", value));
   EXPECT_EQ(value, "0");
 
-  header        = "k1=v1,k2=v2";
-  auto baggage3 = Baggage::FromHeader(header);
-  auto baggage3_new =
-      baggage3->Set("", "n_v1");  // adding invalid key, should return copy of same baggage
-  EXPECT_EQ(baggage3_new->ToHeader(), header);
+  header  = "k1=v1,k2=v2";
+  baggage = Baggage::FromHeader(header);
+  baggage = baggage->Set("", "n_v1");  // adding invalid key, should return copy of same baggage
+  EXPECT_EQ(baggage->ToHeader(), header);
+
+  header  = "k1=v1,k2=v2";
+  baggage = Baggage::FromHeader(header);
+  baggage = baggage->Set("k1", "\x1A");  // adding invalid value, should return copy of same baggage
+  EXPECT_EQ(baggage->ToHeader(), header);
 }
 
 TEST(BaggageTest, BaggageRemove)

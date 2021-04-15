@@ -167,11 +167,11 @@ public:
   }
 
   // Creates string from baggage object.
-  std::string ToHeader()
+  std::string ToHeader() const
   {
     std::string header_s;
     bool first = true;
-    kv_properties_->GetAllEntries([&](nostd::string_view key, nostd::string_view value) noexcept {
+    kv_properties_->GetAllEntries([&](nostd::string_view key, nostd::string_view value) {
       if (!first)
       {
         header_s.push_back(kMembersSeparator);
