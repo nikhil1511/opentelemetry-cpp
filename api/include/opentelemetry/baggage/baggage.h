@@ -14,7 +14,6 @@
 
 #pragma once
 
-#include <iostream>
 #include "opentelemetry/common/kv_properties.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/string_view.h"
