@@ -9,6 +9,7 @@
 #include "opentelemetry/trace/span.h"
 #include "opentelemetry/trace/span_context.h"
 #include "opentelemetry/version.h"
+#include "opentelemetry/baggage/baggage.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace context
@@ -18,6 +19,7 @@ using ContextValue = nostd::variant<bool,
                                     uint64_t,
                                     double,
                                     nostd::shared_ptr<trace::Span>,
-                                    nostd::shared_ptr<trace::SpanContext>>;
+                                    nostd::shared_ptr<trace::SpanContext>,
+                                    nostd::shared_ptr<baggage::Baggage>>;
 }  // namespace context
 OPENTELEMETRY_END_NAMESPACE
